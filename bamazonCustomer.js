@@ -12,15 +12,29 @@ var bamazonDB = db.createConnection({
 
 
 function customerView(){
-    // quantity of stock stored in varibale for later use 
-    var stockQuantity;
 
-    function getQuantityByID (itemID){
+    function purchaseItem (itemID, quantityPurchased){
         
+        // query the quantity of the item purchase
         bamazonDB.query('SELECT item_id, stock_quantity FROM products WHERE item_id = ' + itemID, function (error, results, fields) {
             if (error) throw error;
             //assign the variable the quantity to be used later to compare user input with this. 
-            stockQuantity = results.stock_quantity; 
+            var stockQuantity = results[0].stock_quantity; 
+            // had to put this here cause this is async stuff and happens out of order. 
+            //check to see if the stock_qunatity>answers.stock_qunatity of the item for item_id = ID
+            if(quantityPurchased <= stockQuantity){
+                // if the user put an amount and we have enough... update the table to remove answers.quantity form the column and 
+                // async stuff doesnt matter here cause nothing depends on anyhting here. 
+                setQuantityOfItem(itemID, quantityPurchased); 
+                getTotalPrice(itemID, quantityPurchased);
+                customerView();
+            }
+
+            else{
+                console.log("Insufficient quantity! \n");
+                customerView();
+            }
+
        });
     }
     
@@ -38,9 +52,23 @@ function customerView(){
        });
     }
 
-    purchaseItem(ID, quantity){
-        // code to update column goes here. 
-        // be sure to print the total price of the item 
+    function getTotalPrice(ID, quantity){
+        bamazonDB.query('SELECT price FROM products WHERE item_id = ?', [ID], function (error, results, fields) {
+            if (error) throw error;
+
+            //set total price of purchase to a variable. 
+            var totalPrice = results[0].price * quantity; 
+            console.log(`Your total is: $${totalPrice.toFixed(2)}\n`);
+
+          });
+    }
+
+    function setQuantityOfItem(ID, quantity){
+        // update the quantity of the item 
+        bamazonDB.query('UPDATE products SET stock_quantity = stock_quantity - ? WHERE item_id = ?', [quantity, ID], function (error, results, fields) {
+            if (error) throw error;
+
+          });
     }
     
     function promptUserToBuy(){
@@ -76,14 +104,9 @@ function customerView(){
         
         .then(function (answers) {
     
-            //this function assigns the stockQuantity variable according to the ID the user entered 
-            getQuantityByID(answers.ID);
+            //does the whole purchase 
+            purchaseItem(answers.ID, answers.quantity);
 
-            //check to see if the stock_qunatity>answers.stock_qunatity of the item for item_id = ID
-            if(answers.quantity < stockQuantity){
-                // if the user put an amount and we have enough... update the table to remove answers.quantity form the column and 
-                purchaseItem(); 
-            }
     
         });
     }
